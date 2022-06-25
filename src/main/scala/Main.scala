@@ -2,7 +2,7 @@ import scala.annotation.tailrec
 
 enum Set[+A]:
   case Empty
-  case NonEmpty private[Set](a: A, rest: Set[A])
+  case NonEmpty private[Set](a: A, cnt: Int, rest: Set[A])
 
 object Set:
   def makeSet[A](xs: A*): Set[A] = {
@@ -10,52 +10,68 @@ object Set:
     else xs.foldRight(Empty: Set[A])((el, z) => insert(z, el))
   }
 
-  def foldRight[A, B](set: Set[A], z: B)(f: (A, B) => B): B =
-    set match {
-      case Empty => z
-      case NonEmpty(x, xs) => f(x, foldRight(xs, z)(f))
-    }
-
   @tailrec
-  def foldLeft[A, B](set: Set[A], z: B)(f: (B, A) => B): B =
+  def foldLeft[A, B](set: Set[A], z: B)(f: (B, A, Int) => B): B =
     set match {
       case Empty => z
-      case NonEmpty(h, t) => foldLeft(t, f(z, h))(f)
+      case NonEmpty(h, cnt, t) => foldLeft(t, f(z, h, cnt))(f)
     }
 
   def toString[A](set: Set[A]): String = {
-    foldLeft(set, "")((z, x) =>
-      if (z.isEmpty) z + x.toString
-      else z + " " + x.toString)
+    foldLeft(set, "")((z, x, cnt) =>
+      if (z.isEmpty) z + x.toString + "x" + cnt.toString
+      else z + " " + x.toString + "x" + cnt.toString)
   }
-
+  
   def contain[A](set: Set[A], el: A): Boolean = {
-    foldLeft(set, false)((z, x) => if (x == el) true else z)
+    foldLeft(set, false)((z, x, cnt) => if (x == el) true else z)
+  }
+  
+  def insert[A](set: Set[A], el: A, count: Int = 1): Set[A] = {
+    if (contain(set, el))
+      foldLeft(set, Empty: Set[A])((out, value, cnt) => 
+        if (value != el) NonEmpty(value, cnt, out)
+        else NonEmpty(value, cnt + count, out))
+    else
+      NonEmpty(el, count, set)
   }
 
-  def insert[A](set: Set[A], el: A): Set[A] = {
-    if (!contain(set, el)) {
-      NonEmpty(el, set)
-    }
-    else set
+  def mostCommonElement[A](set: Set[A]): Option[A] = {
+    foldLeft(set, (None: Option[A], 0))((tup, value, cnt) => 
+      if (cnt > tup._2)
+        (Some(value), cnt)
+      else
+        tup)._1
   }
-
-  def join[A](xs: Set[A], prefix: String, separator: String, suffix: String): String = {
-    prefix + (xs match {
-      case Empty => "" 
-      case NonEmpty(a, rest) => a.toString + foldLeft(rest, "")((str, b) => str + separator + b.toString)
-    })+ suffix
+  
+  def getCountOfElement[A](set: Set[A], el: A): Int = {
+    foldLeft(set, 0)((count, value, cnt) => 
+      if (value == el) cnt
+      else count)
   }
-
-  def isSubsetOf[A](xs: Set[A], ys: Set[A]): Boolean = {
-    foldLeft(xs, true)((b, x) => if (contain(ys, x)) b else false)
+  
+  def union[A](firstSet: Set[A], secondSet: Set[A]): Set[A] = {
+    foldLeft(secondSet, firstSet)((set, value, cnt) => insert(set, value, cnt))
   }
-
-  def disjoint[A](xs: Set[A], ys: Set[A]): Boolean = {
-    foldLeft(xs, true)((b, x) => if (!contain(ys, x)) b else false)
+  
+  def intersection[A](firstSet: Set[A], secondSet: Set[A]): Set[A] = {
+    foldLeft(secondSet, Empty: Set[A])((out, value, cnt) => 
+      if (contain(firstSet, value))
+        NonEmpty(value, cnt.min(getCountOfElement(firstSet, value)), out)
+      else
+        out)
   }
-
+  
+  def difference[A](firstSet: Set[A], secondSet: Set[A]): Set[A] = {
+    foldLeft(firstSet, Empty: Set[A])((out, value, cnt) => 
+      if (getCountOfElement(secondSet, value) < cnt)
+        NonEmpty(value, cnt - getCountOfElement(secondSet, value), out)
+      else
+        out)
+  }
+  
+  
 @main def run() = 
   println(
-  Set.join(Set.makeSet[Int](1,2,3), "[", ", ", "]")
+  Set.getCountOfElement(Set.makeSet[Int](1,2,5,5,6,5,5,6),5)
   )
